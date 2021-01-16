@@ -1,4 +1,5 @@
-﻿using System;
+﻿using DiCcontainer.CustomerAttribute;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -83,6 +84,23 @@ namespace DiCcontainer
             return this;
         }
 
+        public Container Register(Type from,Type to,LifeCycle lifeCycle)
+        {
+            var registryType = from;
+            Func<LifeCycle, Type[], object> serviceFac = (_, args) => CreateServiceInstance(registryType);
+            var registryService = new RegistryService(registryType, lifeCycle, serviceFac);
+            if (_registryTable.TryGetValue(registryType, out RegistryService existedService))
+            {
+                _registryTable[registryType] = registryService;
+                registryService.Next = existedService;
+            }
+            else
+            {
+                _registryTable.Add(registryType, registryService);
+            }
+            return this;
+        }
+
         public Container Register<TService>(Func<Container,TService> service, LifeCycle lifeCycle = LifeCycle.Singleton)
         {   
             var registryType = typeof(TService);
@@ -99,6 +117,25 @@ namespace DiCcontainer
                 _registryTable.Add(registryType, registryService);
             }
             return this;
+        }
+
+        public Container Register(Assembly assembly)
+        {
+            // get all type with MaptoAttribute from a specified assembly
+            var typedAttributes = from type in assembly.GetExportedTypes()
+                                 let maptoAttribute = type.GetCustomAttribute<MaptoAttribute>()
+                                 where maptoAttribute != null
+                                 select new { ServiceType = type, mappedServiceType = maptoAttribute.ServiceType,lifeCycle = maptoAttribute.LifeCycle};
+            foreach (var attribute in typedAttributes)
+            {
+                this.Register(attribute.mappedServiceType, attribute.ServiceType, attribute.lifeCycle);
+            }
+            return this;
+        }
+
+        public Container CreateChild()
+        {
+            return new Container(this);
         }
 
         public T GetService<T>()
@@ -176,6 +213,29 @@ namespace DiCcontainer
             }
             return contructor.Invoke(args);
         }
-        
+
+        private object CreateServiceInstance(Type type)
+        {
+            var constructors = type.GetConstructors();
+            if (constructors.Length == 0)
+            {
+                throw new NotImplementedException($"class {type.Name} has no GetConstructor");
+            }
+            var contructor = constructors.Where(c => c.IsPublic == true).FirstOrDefault();
+            contructor ??= constructors.First();
+            var parameters = contructor.GetParameters();
+            var args = new object[parameters.Length];
+            if (parameters.Length == 0)
+            {
+                return Activator.CreateInstance(type);
+            }
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                var a = parameters[i].ParameterType;
+                var b = parameters[i].GetType();
+                args[i] = GetService(parameters[i].ParameterType);
+            }
+            return contructor.Invoke(args);
+        }
     }
 }

@@ -7,6 +7,10 @@ namespace DiCcontainer
     public interface IFoo { public int GenId { set; get; } }
     
     public interface IBar { public int GenId { set; get; } }
+
+    public interface IQux { }
+
+    public interface IBaz { }
     
 
     public interface IMouse { public int GenId { set; get; } }
@@ -15,7 +19,7 @@ namespace DiCcontainer
     public interface ISport<T1, T2> { public int GenId { set; get; } }
     
 
-    public class Foo : IFoo 
+    public class Foo : Base,IFoo 
     {
         public static int Id { set; get; } = 0;
         public int GenId { set; get; }
@@ -27,7 +31,7 @@ namespace DiCcontainer
         }
 
     }
-    public class Bar : IBar 
+    public class Bar : Base, IBar 
     {
         public static int Id { set; get; } = 0;
         public int GenId { set; get; }
@@ -37,7 +41,7 @@ namespace DiCcontainer
             GenId = Id;
         }
     }
-    public class Mouse : IMouse
+    public class Mouse : Base, IMouse
     {
         public static int Id { set; get; } = 0;
         public int GenId { set; get; }
@@ -49,7 +53,7 @@ namespace DiCcontainer
         }
     }
 
-    public class Sport<T1,T2> : ISport<T1, T2> 
+    public class Sport<T1,T2> : Base, ISport<T1, T2> 
     {
         public static int Id { set; get; } = 0;
 
@@ -65,5 +69,25 @@ namespace DiCcontainer
             this.item2 = item2;
         }
 
+    }
+
+    public class Qux : Base, IQux
+    {
+
+    }
+
+    public class Baz : Base, IBaz
+    {
+
+    }
+
+    public class Base : IDisposable
+    {
+        public Base() => Console.WriteLine($"instance of {GetType().Name} is created");
+
+        public void Dispose()
+        {
+            Console.WriteLine($"instance of {GetType().Name} is disposed");
+        }
     }
 }
