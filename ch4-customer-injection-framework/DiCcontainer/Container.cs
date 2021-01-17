@@ -30,6 +30,8 @@ namespace DiCcontainer
             _registryTable = _rootContainer._registryTable;
             _disposed = false;
             _disposables = new List<IDisposable>();
+            _service = new Dictionary<Type, object>();
+
         }
 
         /// <summary>
@@ -86,8 +88,26 @@ namespace DiCcontainer
 
         public Container Register(Type from,Type to,LifeCycle lifeCycle)
         {
-            var registryType = from;
-            Func<LifeCycle, Type[], object> serviceFac = (_, args) => CreateServiceInstance(registryType);
+            // 沒有提供service factory時，自行建立service的instance
+            Func<LifeCycle, Type[], object> serviceFac = (_, args) => CreateServiceInstance(to);
+            var registryService = new RegistryService(from, lifeCycle, serviceFac);
+            if (_registryTable.TryGetValue(from, out RegistryService existedService))
+            {
+                _registryTable[from] = registryService;
+                registryService.Next = existedService;
+            }
+            else
+            {
+                _registryTable.Add(from, registryService);
+            }
+            return this;
+        }
+
+        public Container Register<TService>(Func<Container,TService> service, LifeCycle lifeCycle = LifeCycle.Singleton)
+        {   
+            var registryType = typeof(TService);
+            // 有service factory時，用提供的factory method去建立方法
+            object serviceFac(LifeCycle _, Type[] args) => service(this);
             var registryService = new RegistryService(registryType, lifeCycle, serviceFac);
             if (_registryTable.TryGetValue(registryType, out RegistryService existedService))
             {
@@ -101,11 +121,10 @@ namespace DiCcontainer
             return this;
         }
 
-        public Container Register<TService>(Func<Container,TService> service, LifeCycle lifeCycle = LifeCycle.Singleton)
-        {   
-            var registryType = typeof(TService);
-            // todo:確認這邊到底有沒有問題...
-            object serviceFac(LifeCycle _, Type[] args) => service(this);
+        public Container Register(Type serviceType,Func<Container,object>service, LifeCycle lifeCycle = LifeCycle.Singleton)
+        {
+            var registryType = serviceType;
+            Func<LifeCycle, Type[], object> serviceFac = (_, args) => service(this);
             var registryService = new RegistryService(registryType, lifeCycle, serviceFac);
             if (_registryTable.TryGetValue(registryType, out RegistryService existedService))
             {
@@ -144,17 +163,22 @@ namespace DiCcontainer
         }
         public void Dispose()
         {
-            throw new NotImplementedException();
+            _disposed = true;
+            foreach (var disposable in _disposables)
+            {
+                disposable.Dispose();
+            }
+            _disposables.Clear();
+            _service.Clear();
         }
 
         public object GetService(Type serviceType)
         {
-            object serviceInstance = null;
             RegistryService registryService;
             Type[] genericArgs = null;
             if (!_registryTable.TryGetValue(serviceType, out registryService))
             {
-                throw new ArgumentException("instance of type {0} is not registed");
+                throw new ArgumentException($"instance of type {serviceType.Name} is not registed");
             }
 
             // if type is generic,get its type args
@@ -166,28 +190,35 @@ namespace DiCcontainer
             switch (registryService.LifeCycle)
             {
                 case LifeCycle.Transient:
-                    return registryService.ServiceFac(registryService.LifeCycle, genericArgs);
+                    var service = registryService.ServiceFac(registryService.LifeCycle, genericArgs);
+                    if (service is IDisposable disposable)
+                    {
+                        this._disposables.Add(disposable);
+                    }
+                    return service;
                 case LifeCycle.Scope:
-                    _service.TryGetValue(serviceType, out serviceInstance);
-                    if (serviceInstance == null)
-                    {
-                        serviceInstance = registryService.ServiceFac(registryService.LifeCycle, genericArgs);
-                        _service.Add(serviceType, serviceInstance);
-                        return serviceInstance;
-                    }
-                    _service[serviceType] = serviceInstance;
-                    return serviceInstance;
+                    return GetOrCreateService(_service,serviceType, registryService, genericArgs,_disposables);
                 case LifeCycle.Singleton:
-                    _rootContainer._service.TryGetValue(serviceType, out serviceInstance);
-                    if (serviceInstance == null)
-                    {
-                        _service.Add(serviceType, serviceInstance);
-                        serviceInstance = registryService.ServiceFac(registryService.LifeCycle, genericArgs);
-                    }
-                    _service[serviceType] = serviceInstance;
-                    return serviceInstance;
+                    return GetOrCreateService(_rootContainer._service, serviceType, registryService, genericArgs,_rootContainer._disposables);
             }
             return null;
+        }
+
+        private object GetOrCreateService(Dictionary<Type, object> service,Type serviceType,
+            RegistryService registryService,Type[] genericArgs,List<IDisposable> disposables)
+        {
+            if (service.TryGetValue(serviceType, out var serviceInstance))
+            {
+                return serviceInstance;
+            }
+            serviceInstance = registryService.ServiceFac(registryService.LifeCycle, genericArgs);
+            // if the service implement Idisposable , then add to _disposables list
+            if (serviceInstance is IDisposable disposable)
+            {
+                disposables.Add(disposable);
+            }
+            service.Add(serviceType, serviceInstance);
+            return serviceInstance;
         }
 
         private object CreateServiceInstance<T>()

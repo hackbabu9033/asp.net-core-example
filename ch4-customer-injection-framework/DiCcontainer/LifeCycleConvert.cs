@@ -33,7 +33,7 @@ namespace DiCcontainer
                 case ServiceLifetime.Transient:
                     return LifeCycle.Transient;
                 default:
-                    return LifeCycle.Singleton;
+                    return LifeCycle.Transient;
             }
         }
     }

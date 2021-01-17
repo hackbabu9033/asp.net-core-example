@@ -1,4 +1,5 @@
-﻿using System;
+﻿using DiCcontainer.CustomerAttribute;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -71,6 +72,7 @@ namespace DiCcontainer
 
     }
 
+    [Mapto(LifeCycle.Singleton,typeof(IQux))]
     public class Qux : Base, IQux
     {
 

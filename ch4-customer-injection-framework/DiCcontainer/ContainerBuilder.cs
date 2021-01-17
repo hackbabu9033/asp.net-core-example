@@ -41,14 +41,19 @@ namespace DiCcontainer
                 foreach (var service in services)
                 {
                     var lifeCycle = LifeCycleConvert.Convert(service.Lifetime);
+                    // note : ImplementationFactory和ImplementationInstance都不該用
+                    // Register(Func<Container,TService> service, LifeCycle lifeCycle = LifeCycle.Singleton)的多載方法
+                    // 因為不一樣能從fac知道serviceType為何
                     if (service.ImplementationFactory != null)
                     {
-                        container.Register(service.ImplementationFactory, lifeCycle);
+                        var fac = service.ImplementationFactory;
+                       
+                        container.Register(service.ServiceType,service.ImplementationFactory, lifeCycle);
                     }
                     else if (service.ImplementationInstance != null)
                     {
                         Func<Container,object> serviceFac = (container) => service.ImplementationInstance;
-                        container.Register(serviceFac, lifeCycle);
+                        container.Register(service.ServiceType, serviceFac, lifeCycle);
                     }
                     else
                     {
