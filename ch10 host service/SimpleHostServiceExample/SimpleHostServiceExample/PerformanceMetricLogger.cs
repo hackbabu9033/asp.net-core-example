@@ -1,5 +1,7 @@
 ﻿using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using SimpleHostServiceExample;
+using SimpleHostServiceExample.MetricOption;
 using SimpleHostServiceExample.MetricsInterface;
 using System;
 using System.Collections.Generic;
@@ -38,18 +40,21 @@ namespace SimpleHostServiceExample
         private readonly IMemoryMetric _memoryMeteric;
         private readonly IMetricDeliver _deliverMeteric;
         private readonly IGetNetworkThroughtput _networkThroughtputMeteric;
+        private readonly TimeSpan _logInterval;
         private IDisposable _scheduler;
 
         public PerformanceMetricLogger(
             IProcessorMetric processorMeteric,
             IMemoryMetric memoryMeteric,
             IMetricDeliver deliverMeteric,
-            IGetNetworkThroughtput networkThroughtputMeteric)
+            IGetNetworkThroughtput networkThroughtputMeteric,
+            IOptions<MetricCollectionOption> options)
         {
             _processorMeteric = processorMeteric;
             _memoryMeteric = memoryMeteric;
             _deliverMeteric = deliverMeteric;
             _networkThroughtputMeteric = networkThroughtputMeteric;
+            _logInterval = options.Value.CaprtureInterval;
         }
 
         public Task StartAsync(CancellationToken cancellationToken)
